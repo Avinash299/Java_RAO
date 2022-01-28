@@ -1,0 +1,81 @@
+# Maven
+
+# Build your Java project and run tests with Apache Maven.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/java
+
+trigger:
+  - main
+
+variables:
+  # Agent VM image name
+  vmImageName: 'ubuntu-18.04'
+
+  # Container registry and docker build parameters
+  containerRegistry: 'ralacr.azurecr.io'
+  dockerfilePath: '$(Build.SourcesDirectory)'
+  imageRepository: 'cao_odtschedule_api'
+  tag: '$(Build.SourceBranchName)-$(Build.BuildNumber)'
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: core/pipeline.templates
+      ref: refs/heads/master
+
+stages:
+  - stage: Build
+    jobs:
+      - job: build
+        displayName: Build
+
+        pool:
+          name: Azure Pipelines
+          vmImage: $(vmImageName)
+          demands:
+            - maven
+            - sh
+
+        steps:
+          - task: Maven@3
+            displayName: Building package
+            inputs:
+              mavenPomFile: 'pom.xml'
+              mavenOptions: '-Xmx3072m'
+              javaHomeOption: JDKVersion
+              jdkArchitectureOption: x64
+              publishJUnitResults: true
+              goals: 'package'
+
+          # ToDo: Replace the above maven step with the java build template:
+          #- template: java-build.yml@templates
+          #  parameters:
+          #    publishJUnitResults: true
+          #    testResultsFiles: '**/surefire-reports/TEST-*.xml'
+          #    codeCoverageToolOption: jaCoCo
+          #    codeCoverageClassFilesDirectories: 'target/classes,target/test-classes'
+          #    codeCoverageSourceDirectories: 'src/main/java,src/test/java'
+          #    mavenOptions: '-U -DskipTests=false'
+
+          - template: docker-build.yml@templates
+            parameters:
+              containerRegistry: $(containerRegistry)
+              dockerfilePath: $(dockerfilePath)
+              imageRepository: $(imageRepository)
+              tag: $(tag)
+
+          - template: copy-publish-docker-artifacts.yml@templates
+
+  - stage: Enterprise_Test
+    dependsOn: Build
+    displayName: Deploy to Test
+    condition: |
+      and(succeeded(),
+      ne(variables['Build.Reason'], 'PullRequest'))
+    variables:
+      - group: Enterprise Test - External - CAO ODT Schedule API
+      - name: environment
+        value: Enterprise Test
+    jobs:
+      - template: deploy-to-enterprise-test.yml@templates

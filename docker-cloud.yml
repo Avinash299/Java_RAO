@@ -1,0 +1,39 @@
+version: '3.9'
+configs:
+  DOCKER_CONFIG:
+    external: true
+services:
+  cao_odtschedule:
+    configs:
+      - source: DOCKER_CONFIG
+        target: /usr/src/app/application.yml
+    deploy:
+      mode: replicated
+      placement:
+        constraints:
+          - node.role == worker
+        max_replicas_per_node: 1
+      replicas: REPLICA_COUNT
+      update_config:
+        delay: 15s
+        failure_action: rollback
+        monitor: 60s
+        order: stop-first
+        parallelism: 1
+    dns_search:
+      - vs.raleys.com
+      - raleys.com
+    environment:
+      JAVA_OPTS: JAVA_OPTIONS
+    healthcheck:
+      test: 'curl --fail --silent localhost:8081/actuator/health | grep UP || exit 1'
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    image: ralacr.azurecr.io/DOCKER_IMAGE
+    logging:
+      driver: json-file
+      options:
+        max-size: MAX_LOG_SIZE
+        max-file: MAX_LOG_FILES

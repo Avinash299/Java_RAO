@@ -1,0 +1,10 @@
+.mvn/
+bin/
+/.mvn/*
+*.class
+*.jar
+/target/*
+/target/
+.classpath
+.project
+.settings/
